@@ -15,3 +15,20 @@ ETHNIC = sample(c("Hispanic or Latino", "Not Hispanic or Latino", "Not Reported"
 RACE = sample(c("White", "Black or African American", "Not Reported", "Asian","American Indian or Alaska Native",
 "Native Hawaiian or Other Pacific Islander", "Not Reported"," Unknown", "Other"), N, replace = T)
 
+
+library(dplyr)
+
+raw.DM <- raw.DM %>%
+  mutate(
+    RACE_WHITE = ifelse(RACE == "White", "WHITE", NA),
+    RACE_BLACK = ifelse(RACE == "Black or African American", "BLACK OR AFRICAN AMERICAN", NA),
+    RACE_NOREPORT = ifelse(RACE == "Not Reported", "NOT REPORTED", NA),
+    RACE_ASIAN = ifelse(RACE == "Asian", "ASIAN", NA),
+    RACE_AINDIAN = ifelse(RACE == "American Indian or Alaska Native", "AMERICAN INDIAN OR ALASKA NATIVE", NA),
+    RACE_HAWAIIAN = ifelse(RACE == "Native Hawaiian or Other Pacific Islander", "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDERS", NA),
+    RACE_UNKNOWN = ifelse(RACE == "Unknown", "RACE_UNKNOWN", NA),
+    RACE_OTHER = ifelse(!(RACE %in% c("White", "Black or African American", "Not Reported", "Asian", "American Indian or Alaska Native", "Native Hawaiian or Other Pacific Islander", "Unknown")), "", NA)
+  )
+
+raw.DM$RACE = NULL
+
