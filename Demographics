@@ -1,0 +1,17 @@
+#EDC Raw Data Simulation
+
+N = 20 # Sample Size
+
+STUDYID = rep("XYZ-001", N)
+COUNTRY = rep("United States", N)
+SITE = formatC(rep(1, N), width = 3, flag=0)
+SUBJID = formatC(seq(N), width = 3, flag=0)
+FORM = rep("Demographics", N)
+BRTHDAT = sample(seq(as.Date('1955/01/01'), as.Date('1970/01/01'), by="day"), N)
+AGE = as.integer((Sys.Date()-BRTHDAT)/365.25)
+AGEU = rep("Years",N)
+SEX = sample(c("Female","Male"), N, replace = T)
+ETHNIC = sample(c("Hispanic or Latino", "Not Hispanic or Latino", "Not Reported", "Unknown"), N, replace = T)
+RACE = sample(c("White", "Black or African American", "Not Reported", "Asian","American Indian or Alaska Native",
+"Native Hawaiian or Other Pacific Islander", "Not Reported"," Unknown", "Other"), N, replace = T)
+
