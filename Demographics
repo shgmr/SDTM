@@ -15,7 +15,6 @@ ETHNIC = sample(c("Hispanic or Latino", "Not Hispanic or Latino", "Not Reported"
 RACE = sample(c("White", "Black or African American", "Not Reported", "Asian","American Indian or Alaska Native",
 "Native Hawaiian or Other Pacific Islander", "Not Reported"," Unknown", "Other"), N, replace = T)
 
-
 library(dplyr)
 
 raw.DM <- raw.DM %>%
@@ -29,6 +28,18 @@ raw.DM <- raw.DM %>%
     RACE_UNKNOWN = ifelse(RACE == "Unknown", "RACE_UNKNOWN", NA),
     RACE_OTHER = ifelse(!(RACE %in% c("White", "Black or African American", "Not Reported", "Asian", "American Indian or Alaska Native", "Native Hawaiian or Other Pacific Islander", "Unknown")), "", NA)
   )
-
+# Remove the variable "RACE"
 raw.DM$RACE = NULL
+
+# Get started with mapping the raw data into a SDTM standard.
+SDTM.DM = raw.DM
+# Derive SITEID
+names(SDTM.DM)[3] = "SITEID"
+# Derive BRTHDTC
+SDTM.DM$BRTHDAT =format(as.Date(SDTM.DM$BRTHDAT,format="%Y-%m-%d"), format="%d-%m-%Y")
+names(SDTM.DM)[6] = "BRTHDTC"
+
+
+
+
 
