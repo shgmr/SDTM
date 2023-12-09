@@ -41,6 +41,12 @@ names(SDTM.DM)[6] = "BRTHDTC"
 # Derive COUNTRY
 SDTM.DM$COUNTRY = ifelse(SDTM.DM$COUNTRY == "United States", "USA", SDTM.DM$COUNTRY)
 
+# Derive SEX
+SDTM.DM$SEX = ifelse(SDTM.DM$SEX == "Female", "F",
+                   ifelse(SDTM.DM$SEX == "Male", "M",
+                          ifelse(SDTM.DM$SEX == "Unknown", "U",
+                                 ifelse(SDTM.DM$SEX == "Undifferentiated", "UNDIFFERENTIATED", NA))))
 
-
-
+#Derive ETHNIC AND AGEU
+raw.DM$ETHNIC = toupper(raw.DM$ETHNIC) 
+raw.DM$AGEU = toupper(raw.DM$AGEU) 
