@@ -1,6 +1,6 @@
 #EDC Raw Data Simulation
 
-N = 20 # Sample Size
+N = 20 #Sample Size
 
 STUDYID = rep("XYZ-001", N)
 COUNTRY = rep("United States", N)
@@ -28,20 +28,20 @@ raw.DM <- raw.DM %>%
     RACE_UNKNOWN = ifelse(RACE == "Unknown", "RACE_UNKNOWN", NA),
     RACE_OTHER = ifelse(!(RACE %in% c("White", "Black or African American", "Not Reported", "Asian", "American Indian or Alaska Native", "Native Hawaiian or Other Pacific Islander", "Unknown")), "", NA)
   )
-# Remove the variable "RACE"
+#Drop the variable "RACE"
 raw.DM$RACE = NULL
 
-# Get started with mapping the raw data into a SDTM standard.
+#Get started with mapping the raw data into a SDTM standard.
 SDTM.DM = raw.DM
-# Derive SITEID
+#Derive SITEID
 names(SDTM.DM)[3] = "SITEID"
-# Derive BRTHDTC
+#Derive BRTHDTC
 SDTM.DM$BRTHDAT =format(as.Date(SDTM.DM$BRTHDAT,format="%Y-%m-%d"), format="%d-%m-%Y")
 names(SDTM.DM)[6] = "BRTHDTC"
-# Derive COUNTRY
+#Derive COUNTRY
 SDTM.DM$COUNTRY = ifelse(SDTM.DM$COUNTRY == "United States", "USA", SDTM.DM$COUNTRY)
 
-# Derive SEX
+#Derive SEX
 SDTM.DM$SEX = ifelse(SDTM.DM$SEX == "Female", "F",
                    ifelse(SDTM.DM$SEX == "Male", "M",
                           ifelse(SDTM.DM$SEX == "Unknown", "U",
@@ -50,3 +50,15 @@ SDTM.DM$SEX = ifelse(SDTM.DM$SEX == "Female", "F",
 #Derive ETHNIC AND AGEU
 raw.DM$ETHNIC = toupper(raw.DM$ETHNIC) 
 raw.DM$AGEU = toupper(raw.DM$AGEU) 
+
+#Derive RACE
+SDTM.DM$RACE = ifelse(rowSums(!is.na(SDTM.DM[c("RACE_WHITE", "RACE_BLACK", "RACE_HAWAIIAN","RACE_ASIAN", "RACE_AINDIAN", "RACE_NOREPORT", "RACE_UNKNOWN", "RACE_OTHER")])) == 1,
+               ifelse(!is.na(SDTM.DM$RACE_AINDIAN), "AMERICAN INDIAN OR ALASKA AMERICAN",
+               ifelse(!is.na(SDTM.DM$RACE_ASIAN), "ASIAN",
+               ifelse(!is.na(SDTM.DM$RACE_BLACK),"BLACK OR AFRICAN AMERICAN",
+               ifelse(!is.na(SDTM.DM$RACE_HAWAIIAN), "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDERS",
+               ifelse(!is.na(SDTM.DM$RACE_WHITE), "WHITE",
+               ifelse(!is.na(SDTM.DM$RACE_NOREPORT), "NOT REPORTED",
+               ifelse(!is.na(SDTM.DM$RACE_UNKNOWN), "UNKNOWN",
+               ifelse(!is.na(SDTM.DM$RACE_OTHER)," ", NA)))))))))
+
