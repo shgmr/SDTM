@@ -62,3 +62,6 @@ SDTM.DM$RACE = ifelse(rowSums(!is.na(SDTM.DM[c("RACE_WHITE", "RACE_BLACK", "RACE
                ifelse(!is.na(SDTM.DM$RACE_UNKNOWN), "UNKNOWN",
                ifelse(!is.na(SDTM.DM$RACE_OTHER)," ", NA)))))))))
 
+#Confirm if RACE is multiple
+SDTM.DM$RACE = ifelse(rowSums(!is.na(SDTM.DM[c("RACE_WHITE", "RACE_BLACK", "RACE_HAWAIIAN","RACE_ASIAN", "RACE_AINDIAN", "RACE_NOREPORT", "RACE_UNKNOWN", "RACE_OTHER")])) > 1, "MULTIPLE", SDTM.DM$RACE)
+
