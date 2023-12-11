@@ -65,3 +65,28 @@ SDTM.DM$RACE = ifelse(rowSums(!is.na(SDTM.DM[c("RACE_WHITE", "RACE_BLACK", "RACE
 #Confirm if RACE is multiple
 SDTM.DM$RACE = ifelse(rowSums(!is.na(SDTM.DM[c("RACE_WHITE", "RACE_BLACK", "RACE_HAWAIIAN","RACE_ASIAN", "RACE_AINDIAN", "RACE_NOREPORT", "RACE_UNKNOWN", "RACE_OTHER")])) > 1, "MULTIPLE", SDTM.DM$RACE)
 
+# Add ARMCD (Planned ARM Code).
+# DM Parent Domain is created ☺ 
+SDTM.DM$ARMCD = "DRUG A"
+
+
+#Create SUPPDM (a shorthand for the supplemental DM) Domain
+SDTM.SUPPDM = SDTM.DM %>%
+  mutate(
+RACE1 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_AINDIAN), "AMERICAN INDIAN OR ALASKA AMERICAN", NA),
+RACE2 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_ASIAN), "ASIAN", NA),
+RACE3 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_BLACK), "BLACK OR AFRICAN AMERICAN", NA),
+RACE4 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_HAWAIIAN), "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDERS", NA),
+RACE5 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_WHITE), "WHITE", NA),
+RACE6 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_NOREPORT), "NOT REPORTED", NA),
+RACE7 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_UNKNOWN), "UNKNOWN", NA),
+RACE8 = ifelse(RACE == "MULTIPLE" & !is.na(RACE_OTHER), " ", NA))
+
+# # Add RACEOTH if OTHER is present in the parent domain.
+SDTM.SUPPDM = SDTM.DM %>%
+  mutate(
+RACEOTH = ifelse(!is.na(RACE_OTHER), "OTHER", NA))
+
+# Drop the variables from the parent domain.
+SDTM.SUPPDM[,1:length(SDTM.DM)] = NULL
+
