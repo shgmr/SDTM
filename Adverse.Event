@@ -1,0 +1,56 @@
+#Raw Data Simulation for Adverse Event (AE)
+
+N = 20
+STUDYID = rep("XYZ-001", N)
+COUNTRY = rep("United States", N)
+SITEID = formatC(rep(1, N), width = 3, flag=0)
+SUBJID = formatC(seq(N), width = 3, flag=0)
+ESEQ = rep(1, N)
+FORM = rep("Adverse Events", N)
+FSEQ = rep(1, N)
+IGSEQ = rep(1, N)
+AEYN = rep("Y", N)
+AETERM = sample(c("Headache","Sore Neck"), N, replace = T)
+AESER = rep("No", N)
+AESMIE = rep("No", N)
+AESHOSP = rep("No", N)
+AESDTH = rep("No", N)
+AESLIFE = rep("No", N)
+AESDISAB = rep("No", N)
+AESCONG = rep("No", N)
+AESTDAT =  sample(seq(as.Date('2024/04/01'), as.Date('2024/07/30'), by="day"), N)
+AEONGO = sample(c("Yes","No"),N, replace = T)
+
+AEENDAT =  ifelse(AEONGO == "Yes", runif(1, min=as.Date('2024/08/01'), max=as.Date('2024/12/31')), NA)
+
+AEACN = sample(c("Drug Not Changed", "Not Applicable", "Drug Interrupted", " Dose Increased","Dose Rate Reduced","Dose Reduced","Drug Withdrawn", "Unknown"),N, replace = T)
+AEREL = rep("No", N)
+AESEV = sample(c("Mild", "Moderate", "Severe"),N,replace = T)
+AEOUT = sample(c("Recoverd or Resolved", "Fatal", "Not Recoverd or Not Resolved", "Severe","Recoverd or Resolved with Sequelae","Unknown","Recovering or Resolving"),N,replace = T)
+
+SOC = ifelse(AETERM == "Headache","Nervous system disorders",
+             ifelse(AETERM == "Sore Neck", "Musculoskeletal and connective tissue disorders", NA))
+
+PT = ifelse(AETERM == "Headache","Headaches",
+             ifelse(AETERM == "Sore Neck","Neck Pain", NA))
+LLT = ifelse(AETERM == "Headache","Headache",
+             ifelse(AETERM == "Sore Neck","Neck Pain", NA))
+LLTCD = ifelse(AETERM == "Headache","10019211",
+             ifelse(AETERM == "Sore Neck","10028836", NA))
+HLT = ifelse(AETERM == "Headache","Headaches NEC",
+             ifelse(AETERM == "Sore Neck","Musculoskeletal and connective tissue disorders", NA))
+HLTCD = ifelse(AETERM == "Headache","10019233",
+             ifelse(AETERM == "Sore Neck","10068757", NA))
+PT_CD = ifelse(AETERM == "Headache","10019211",
+             ifelse(AETERM == "Sore Neck","10028836", NA))
+HLGT = ifelse(AETERM == "Headache","Nervous system disorders",
+             ifelse(AETERM == "Sore Neck","Musculoskeletal and connective tissue disorders NEC", NA))
+HLGTCD = PT_CD = ifelse(AETERM == "Headache","10019231",
+             ifelse(AETERM == "Sore Neck","10028393", NA))
+DICTYPE =  rep("MedDRA", N)
+MEDDRUG = rep("MedDRA 20.1",N)
+
+raw.AE = data.frame(STUDYID, COUNTRY, SITEID, SUBJID, 
+                    ESEQ, FORM, FSEQ, IGSEQ, AEYN, AETERM, AESER, AESMIE,
+                    AESHOSP,AESDISAB, AESCONG, AESTDAT, AEONGO,AEENDAT,AEACN,AEREL,AESEV,AEOUT,
+                     SOC,PT, LLT, LLTCD,HLT,HLTCD,PT_CD,HLGT,HLGTCD, DICTYPE, MEDDRUG)
