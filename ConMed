@@ -1,0 +1,93 @@
+# Load necessary libraries
+library(readxl)  # For importing Excel files
+library(dplyr)   # For data manipulation
+library(stringr) # For string operations
+
+# Set the file path for the raw data
+raw_data_path <- "E://users/tiany/sdtm_raw.xlsx"
+
+# Import raw Concomitant Medication data from Excel
+CM <- read_excel(raw_data_path, sheet = "CM")
+
+# Show structure of the raw CM dataset
+str(CM)
+
+# Create the 1st set of CM variables using existing variables from RAW.CM
+CM1 <- CM %>%
+  filter(CMYN == "Y") %>%
+  rename(
+    STUDYID_ = STUDYID,
+    CMTRT_ = CMTRT,
+    CMINDC_ = CMINDC,
+    CMDOSU_ = CMDOSU,
+    CMROUTE_ = CMROUTE,
+    CMDOSFRM_ = CMDOSFRM,
+    CMDOSFRQ_ = CMDOSFRQ,
+    CMDECOD_ = CMDECOD
+  ) %>%
+  mutate(
+    # Define DOMAIN, CMCAT
+    DOMAIN = "CM",
+    
+    # Derive STUDYID, USUBJID, CMROUTE, CMDOSU, CMDOSFRM, CMDOSFRQ
+    STUDYID = str_trim(STUDYID_),
+    USUBJID = paste0(str_trim(STUDYID), "-", str_trim(SITEID), "-", str_trim(SUBJID)),
+    CMTRT = str_trim(CMTRT_),
+    CMCAT = "GENERAL",
+    
+    CMROUTE = str_trim(str_to_upper(CMROUTE_)),
+    CMDOSU = str_trim(str_to_upper(CMDOSU_)),
+    CMDOSFRM = str_trim(str_to_upper(CMDOSFRM_)),
+    CMDOSFRQ = str_trim(str_to_upper(CMDOSFRQ_)),
+    
+    # Format CMSTDTC, CMENDTC
+    CMSTDTC = format(CMSTDAT, "%Y-%m-%d"),
+    CMENDTC = format(CMENDAT, "%Y-%m-%d"),
+    
+    # Derive CMTRT, CMINDC, CMDECOD, CMENRTPT
+    CMTRT = str_trim(str_to_upper(CMTRT_)),
+    CMINDC = str_trim(str_to_upper(CMINDC_)),
+    CMDECOD = str_trim(str_to_upper(CMDECOD_)),
+    CMENRTPT = ifelse(CMONGO != "", "ONGOING", NA)
+  )
+
+# Sort dataset CM1 by USUBJID, CMCAT, CMSTDTC, CMENDTC, CMTRT
+CM2 <- CM1 %>%
+  arrange(USUBJID, CMCAT, CMSTDTC, CMENDTC, CMTRT)
+
+# Derive CMSEQ
+Final <- CM2 %>%
+  group_by(USUBJID, CMCAT, CMSTDTC, CMENDTC, CMTRT) %>%
+  mutate(
+    CMSEQ = cumsum(ifelse(row_number() == 1, 0, 1)) + 1
+  ) %>%
+  ungroup()
+
+# Save the final dataset
+# Here, we assume saving to a CSV for SDTM output as R doesn't have a direct SAS equivalent
+write.csv(Final, "E://users/tiany/SDTM_CM.csv", row.names = FALSE)
+
+# Assign labels and lengths (in R, we generally don't need to specify lengths explicitly)
+# However, you can document the attributes if necessary
+
+# Labels
+final_labels <- list(
+  STUDYID = "Study Identifier",
+  DOMAIN = "Domain Abbreviation",
+  USUBJID = "Unique Subject Identifier",
+  SUBJID = "Subject Identifier for the Study",
+  CMSEQ = "Sequence Number",
+  CMTRT = "Reported name of drug, Medication or Therapy",
+  CMDECOD = "Standardized Medication Name",
+  CMCAT = "Category for Medication",
+  CMINDC = "Indication",
+  CMDOSU = "Dose Units",
+  CMDOSFRM = "Dose Form",
+  CMDOSFRQ = "Dose Frequency",
+  CMROUTE = "Route of Administration",
+  CMSTDTC = "Start Date/Time of Medication",
+  CMENDTC = "End Date/Time of Medication",
+  CMENRTPT = "End Relative to Reference Time Point"
+)
+
+# Optionally, save the final dataset to a CSV or any other format that fits your needs
