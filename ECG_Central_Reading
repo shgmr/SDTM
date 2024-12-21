@@ -1,0 +1,158 @@
+# Load necessary libraries
+library(readxl)  # For importing Excel files
+library(dplyr)   # For data manipulation
+library(stringr) # For string operations
+library(lubridate) # For date manipulation
+
+# Set the file path for the raw data
+raw_data_path <- "E://users/tiany/sdtm_raw.xlsx"
+
+# Import raw ECG data (sheet "EG")
+EG <- read_excel(raw_data_path, sheet = "EG")
+
+# Show structure of the raw EG dataset
+str(EG)
+
+# Create a custom function for EGTESTCD values mapping (similar to SAS formats)
+EGTESTCD_mapping <- function(EGTESTCD) {
+  case_when(
+    EGTESTCD == "HR" ~ "Heart Rate",
+    EGTESTCD == "INTP" ~ "Interpretation",
+    EGTESTCD == "PR" ~ "PR Interval",
+    EGTESTCD == "QRS" ~ "QRS Interval",
+    EGTESTCD == "QT" ~ "QT Interval",
+    EGTESTCD == "QTca" ~ "QTca Interval",
+    TRUE ~ EGTESTCD
+  )
+}
+
+# Process the dataset EG1
+EG1 <- EG %>%
+  mutate(
+    # Define lengths for standard variables (R doesn't require explicit length definition)
+    HR = character(1), PR = character(1), QRS = character(1), QT = character(1), QTca = character(1), INTP = character(1),
+    VISIT = character(1),
+    
+    # Derive STUDYID, USUBJID, EGREFID, EGMETHOD, EGTESTCD mappings
+    STUDYID = str_trim(STUDYID),
+    USUBJID = paste0(str_trim(STUDYID), "-", str_trim(SITEID), "-", str_trim(SUBJID)),
+    EGMETHOD = str_to_upper(str_trim(EGMETHOD)),
+    EGREFID = as.character(FSEQ),
+    
+    # Derive HR, PR, QRS, QT, QTca, INTP
+    HR = str_c(coalesce(as.character(EGHRMN_EGORRES), "_null_"), EGHRMN_EGORRESU, sep = "~"),
+    PR = str_c(coalesce(as.character(PRSB_EGORRES), "_null_"), PRSB_EGORRESU, sep = "~"),
+    QRS = str_c(coalesce(as.character(QRSAG_EGORRES), "_null_"), QRSAG_EGORRESU, sep = "~"),
+    QT = str_c(coalesce(as.character(QTAG_EGORRES), "_null_"), QTAG_EGORRESU, sep = "~"),
+    QTca = str_c(coalesce(as.character(QTCAAG_EGORRES), "_null_"), QTCAAG_EGORRESU, sep = "~"),
+    INTP = str_c(INTP_EGORRES, EGORRES, sep = "~"),
+    
+    # Derive VISIT
+    VISIT = case_when(
+      str_detect(str_to_upper(EVENT), "SCREENING") ~ "SCREENING",
+      str_detect(str_to_upper(EVENT), "FOLLOW UP") ~ "FOLLOW-UP",
+      str_detect(str_to_upper(EVENT), "DAY") ~ paste0("DAY ", str_sub(str_to_upper(EVENT), -2)),
+      TRUE ~ str_trim(str_to_upper(EVENT))
+    )
+  )
+
+# Sort dataset EG1 by STUDYID, DOMAIN, USUBJID, EGREFID, VISIT, EGDAT
+EG1 <- EG1 %>%
+  arrange(STUDYID, DOMAIN, USUBJID, EGMETHOD, EGREFID, VISIT, EGDAT)
+
+# Transpose dataset EG1 with HR, PR, QRS, QT, QTca, INTP
+EG2 <- EG1 %>%
+  select(STUDYID, DOMAIN, USUBJID, EGMETHOD, EGREFID, VISIT, EGDAT, HR, PR, QRS, QT, QTca, INTP) %>%
+  pivot_longer(cols = c(HR, PR, QRS, QT, QTca, INTP), names_to = "EGTESTCD", values_to = "col1")
+
+# Process the transposed dataset EG2 to derive EGTESTCD, EGTEST, EGSTRESC, EGORRES, etc.
+EG3 <- EG2 %>%
+  mutate(
+    EGTEST = EGTESTCD_mapping(EGTESTCD),
+    EGORRESU = str_trim(str_sub(col1, 1, 40)),  # Assuming EGORRESU is the first 40 characters
+    EGSTRESC = if_else(EGTESTCD == "INTP", str_to_upper(str_trim(str_split(col1, "~")[[1]][1])), col1),
+    EGORRES = if_else(EGTESTCD == "INTP", str_to_upper(str_trim(str_split(col1, "~")[[1]][2])), EGSTRESC),
+    EGCAT = case_when(
+      EGTESTCD == "HR" ~ "MEASUREMENT",
+      EGTESTCD %in% c("PR", "QRS", "QT", "QTca") ~ "INTERVAL",
+      TRUE ~ NA_character_
+    ),
+    EGPOS = if_else(EGTESTCD %in% c("HR", "PR", "QRS", "QT", "QTca"), "SUPINE", NA_character_),
+    
+    # Derive EGDTC
+    EGD = as.Date(EGDAT),
+    EGM = format(EGDAT, "%H:%M:%S"),
+    EGDTC_DT = format(EGD, "%Y-%m-%d"),
+    EGDTC_TM = format(EGM, "%H:%M:%S"),
+    EGDTC = paste0(EGDTC_DT, "T", EGDTC_TM)
+  )
+
+# Sort dataset EG3 by USUBJID
+EG3 <- EG3 %>%
+  arrange(USUBJID)
+
+# Merge dataset EG3 with EX dataset (merge requires that you already have the EX dataset)
+EX <- read.csv("path_to_ex.csv") # Assuming EX dataset is saved as CSV
+EG4 <- EG3 %>%
+  left_join(EX %>% select(USUBJID, EXSTDTC), by = "USUBJID") %>%
+  mutate(
+    EGDTM = if_else(nchar(EGDTC) >= 10, as_datetime(substr(EGDTC, 1, 16), format = "%Y-%m-%dT%H:%M:%S"), NA_datetime_),
+    EXSTDTM = if_else(nchar(EXSTDTC) >= 10, as_datetime(substr(EXSTDTC, 1, 16), format = "%Y-%m-%dT%H:%M:%S"), NA_datetime_)
+  )
+
+# Select the condition when EGDTM is on or before EXSTDTM and no missing EGSTRESC
+BASEFL1 <- EG4 %>%
+  filter(EGDTM <= EXSTDTM, !is.na(EGSTRESC)) %>%
+  arrange(USUBJID, EGTESTCD, EGDTC)
+
+# Create baseline flag
+BASEFL2 <- BASEFL1 %>%
+  group_by(USUBJID, EGTESTCD) %>%
+  mutate(
+    EGBLFL = if_else(last(EGTESTCD), "Y", NA_character_)
+  ) %>%
+  select(USUBJID, EGTESTCD, EGDTC, EGBLFL)
+
+# Merge EG4 and BASEFL2 to finalize EG5
+EG5 <- EG4 %>%
+  left_join(BASEFL2, by = c("USUBJID", "EGTESTCD", "EGDTC"))
+
+# Sort dataset EG5 by VISIT
+EG5 <- EG5 %>%
+  arrange(VISIT)
+
+# Merge dataset EG5 and TV (assuming TV dataset is already loaded)
+TV <- read.csv("path_to_tv.csv")  # Assuming TV dataset is saved as CSV
+EG6 <- EG5 %>%
+  left_join(TV %>% select(VISIT, VISITNUM), by = "VISIT")
+
+# Sort EG6 by USUBJID, EGCAT, EGTESTCD, EGDTC, VISIT
+EG6 <- EG6 %>%
+  arrange(USUBJID, EGCAT, EGTESTCD, EGDTC, VISIT)
+
+# Derive EGSEQ
+Final <- EG6 %>%
+  group_by(USUBJID, EGCAT, EGTESTCD, EGDTC, VISIT) %>%
+  mutate(
+    EGSEQ = row_number()
+  ) %>%
+  ungroup()
+
+# Save the final dataset (can be saved as CSV or RDS)
+write.csv(Final, "E://users/tiany/SDTM_EG.csv", row.names = FALSE)
+
+# Define variable labels (this step can be documented separately)
+final_labels <- list(
+  STUDYID = "Study Identifier",
+  DOMAIN = "Domain Abbreviation",
+  USUBJID = "Unique Subject Identifier",
+  EGSEQ = "Sequence Number",
+  EGREFID = "ECG Reference ID",
+  EGTESTCD = "ECG Test or Examination Short Name",
+  EGTEST = "ECG Test or Examination Name",
+  EGCAT = "Category for ECG",
+  EGPOS = "ECG Position of Subjects",
+  EGORRES = "Result or Finding in Original Units",
+  EGORRESU = "Original Units",
+  EGSTRESC = "Character Result/Finding in Std Format",
+  EGMETHOD = "Method
