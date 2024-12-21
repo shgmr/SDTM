@@ -1,0 +1,98 @@
+library(readxl)   # For reading Excel files
+library(dplyr)    # For data manipulation
+library(lubridate) # For date manipulation
+library(labelled) # For assigning labels to columns
+
+# Step 1: Import data from the Excel file (sheet "AE")
+raw_data <- read_excel("E://users/tiany/sdtm_raw.xlsx", sheet = "AE")
+
+# Step 2: Rename columns and clean the data
+ae_data <- raw_data %>%
+  rename(
+    AETERM_ = AETERM,
+    AEACN_ = AEACN,
+    AESER_ = AESER,
+    AEREL_ = AEREL,
+    AEOUT_ = AEOUT,
+    AESCONG_ = AESCONG,
+    AESDISAB_ = AESDISAB,
+    AESDTH_ = AESDTH,
+    AESHOSP_ = AESHOSP,
+    AESMIE_ = AESMIE
+  ) %>%
+  mutate(
+    DOMAIN = "AE",
+    STUDYID = "ABC-001",
+    USUBJID = paste0(trimws(STUDYID), "-", trimws(SITEID), "-", trimws(SUBJID)),
+    AETERM = toupper(trimws(AETERM_)),
+    AELLT = toupper(trimws(LLT)),
+    AELLTCD = LLTCD,
+    AEDECOD = toupper(trimws(PT)),
+    AEPTCD = PT_CD,
+    AEHLT = toupper(trimws(HLT)),
+    AEHLTCD = HLTCD,
+    AEHLGT = toupper(trimws(HLGT)),
+    AEHLGTCD = HLGTCD,
+    AEBODSYS = toupper(trimws(SOC)),
+    AEACN = toupper(trimws(AEACN_)),
+    AEOUT = toupper(trimws(AEOUT_)),
+
+    # Convert binary values ("Yes"/"No") to "Y"/"N"
+    AESER = ifelse(AESER_ == "Yes", "Y", ifelse(AESER_ == "No", "N", NA)),
+    AEREL = ifelse(AEREL_ == "Yes", "Y", ifelse(AEREL_ == "No", "N", NA)),
+    AESCONG = ifelse(AESCONG_ == "Yes", "Y", ifelse(AESCONG_ == "No", "N", NA)),
+    AESDISAB = ifelse(AESDISAB_ == "Yes", "Y", ifelse(AESDISAB_ == "No", "N", NA)),
+    AESDTH = ifelse(AESDTH_ == "Yes", "Y", ifelse(AESDTH_ == "No", "N", NA)),
+    AESHOSP = ifelse(AESHOSP_ == "Yes", "Y", ifelse(AESHOSP_ == "No", "N", NA)),
+    AESMIE = ifelse(AESMIE_ == "Yes", "Y", ifelse(AESMIE_ == "No", "N", NA)),
+
+    # Format AETOXGR, AESTDTC, AEENDTC
+    AETOXGR = factor(AESEV, levels = c("Mild", "Moderate", "Severe"), labels = c("1", "2", "3")),
+    AESTDTC = format(as.Date(AESDAT, format = "%Y-%m-%d"), "%Y-%m-%d"),
+    AEENDTC = format(as.Date(AEENDAT, format = "%Y-%m-%d"), "%Y-%m-%d"),
+
+    # Derive AEENRTPT based on conditions
+    AEENRTPT = case_when(
+      is.na(AEENDTC) & AEOUT == "NOT RECOVERED OR NOT RESOLVED" ~ "ONGOING",
+      is.na(AEENDTC) & AEOUT == "UNKNOWN" ~ "UNKNOWN",
+      TRUE ~ NA_character_
+    ),
+    AEENTPT = ifelse(AEENRTPT %in% c("ONGOING", "UNKNOWN"), "END OF STUDY", NA)
+  )
+
+# Step 3: Sort the data by USUBJID, AESTDTC, AEENDTC, and AETERM
+ae_sorted <- ae_data %>%
+  arrange(USUBJID, AESTDTC, AEENDTC, AETERM)
+
+# Step 4: Derive AESEQ (sequence number within each USUBJID)
+final_data <- ae_sorted %>%
+  group_by(USUBJID) %>%
+  mutate(AESEQ = row_number()) %>%
+  ungroup()
+
+# Step 5: Assign labels to variables for documentation purposes
+var_label(final_data$STUDYID) <- "Study Identifier"
+var_label(final_data$DOMAIN) <- "Domain Abbreviation"
+var_label(final_data$USUBJID) <- "Unique Subject Identifier"
+var_label(final_data$AESEQ) <- "Sequence Number"
+var_label(final_data$AETERM) <- "Reported Term for the Adverse Event"
+var_label(final_data$AELLT) <- "Lowest Level Term"
+var_label(final_data$AELLTCD) <- "Lowest Level Term Code"
+var_label(final_data$AEDECOD) <- "Dictionary-Derived Term"
+var_label(final_data$AEPTCD) <- "Preferred Term Code"
+var_label(final_data$AEHLT) <- "High Level Term"
+var_label(final_data$AEHLTCD) <- "High Level Term Code"
+var_label(final_data$AEHLGT) <- "High Level Group Term"
+var_label(final_data$AEHLGTCD) <- "High Level Group Term Code"
+var_label(final_data$AEBODSYS) <- "Body System or Organ Class"
+var_label(final_data$AESER) <- "Serious Event"
+var_label(final_data$AEACN) <- "Action Taken with Study Treatment"
+var_label(final_data$AEREL) <- "Causality"
+var_label(final_data$AEOUT) <- "Outcome of Adverse Event"
+var_label(final_data$AESCONG) <- "Congenital Anomaly or Birth Defect"
+var_label(final_data$AESDISAB) <- "Persist or Significant Disability"
+var_label(final_data$AESDTH) <- "Results in Death"
+var_label(final_data$AESHOSP) <- "Requires or Prolongs Hospitalization"
+var_label(final_data$AESMIE) <- "Other Medically Important Serious Event"
+var_label(final_data$AETOXGR) <- "Standard Toxicity Grade"
+var_label(final_data$AESTDTC) <- "Start Date/Time
