@@ -1,0 +1,137 @@
+library(readxl)
+library(dplyr)
+library(lubridate)
+
+# Load the raw data
+LB_raw <- read_excel("E://users/tiany/sdtm_raw.xlsx", sheet = "LB")
+LB_conversion <- read_excel("E://users/tiany/LB_conversion.xlsx", sheet = "CONVERSION")
+
+# Data Processing
+LB1 <- LB_raw %>%
+  filter(LBYN == "Y") %>%
+  mutate(
+    DOMAIN = "LB",
+    STUDYID = trimws(STUDYID_),
+    USUBJID = paste(trimws(STUDYID), trimws(SITEID), trimws(SUBJID), sep = "-"),
+    LBDTC = case_when(
+      !is.na(LBDAT) & !is.na(LBTIM) ~ paste(format(LBDAT, "%Y-%m-%d"), format(LBTIM, "%H:%M")),
+      !is.na(LBDAT) & is.na(LBTIM) ~ format(LBDAT, "%Y-%m-%d"),
+      is.na(LBDAT) & !is.na(LBTIM) ~ paste("-----T", format(LBTIM, "%H:%M")),
+      TRUE ~ NA_character_
+    ),
+    LBNRIND = toupper(trimws(LBNRIND_)),
+    LBFAST = toupper(trimws(LBFAST_)),
+    LBORRES = trimws(as.character(LBORRES_)),
+    LBORRESU = toupper(trimws(LBORRESU)),
+    LBORNRLO = trimws(as.character(LBORNRLO_)),
+    LBORNRHI = trimws(as.character(LBORNRHI_)),
+    VISIT = case_when(
+      grepl("SCREENING", EVENT, ignore.case = TRUE) ~ "SCREENING",
+      grepl("FOLLOW UP", EVENT, ignore.case = TRUE) ~ "FOLLOW-UP",
+      grepl("DAY", EVENT, ignore.case = TRUE) ~ paste("DAY", substr(toupper(EVENT), nchar(EVENT)-1, nchar(EVENT))),
+      TRUE ~ toupper(trimws(EVENT))
+    )
+  )
+
+# Merge with conversion table
+LB2 <- LB1 %>%
+  left_join(LB_conversion, by = c("LBCAT", "LBTESTCD", "LBORRESU" = "ORIGINAL_UNIT")) %>%
+  arrange(STUDYID, USUBJID, LBCAT, LBTESTCD, LBDTC)
+
+# Derive additional variables
+LB3 <- LB2 %>%
+  mutate(
+    LBSTRESN = case_when(
+      substr(LBORRES, 1, 1) == ">" ~ as.numeric(substr(LBORRES, 2, nchar(LBORRES))) * CONVERSION,
+      substr(LBORRES, 1, 1) == "<" ~ as.numeric(substr(LBORRES, 2, nchar(LBORRES))) * CONVERSION,
+      substr(LBORRES, 1, 2) == ">=" ~ as.numeric(substr(LBORRES, 3, nchar(LBORRES))) * CONVERSION,
+      substr(LBORRES, 1, 2) == "<=" ~ as.numeric(substr(LBORRES, 3, nchar(LBORRES))) * CONVERSION,
+      !is.na(LBORRES) ~ as.numeric(LBORRES) * CONVERSION,
+      TRUE ~ NA_real_
+    ),
+    LBSTRESC = case_when(
+      substr(LBORRES, 1, 1) == ">" ~ paste(">", trimws(as.character(LBSTRESN))),
+      substr(LBORRES, 1, 1) == "<" ~ paste("<", trimws(as.character(LBSTRESN))),
+      substr(LBORRES, 1, 2) == ">=" ~ paste(">=", trimws(as.character(LBSTRESN))),
+      substr(LBORRES, 1, 2) == "<=" ~ paste("<=", trimws(as.character(LBSTRESN))),
+      !is.na(LBORRES) ~ trimws(as.character(LBSTRESN)),
+      TRUE ~ NA_character_
+    ),
+    LBSTNRLO = as.numeric(LBORNRLO) * CONVERSION,
+    LBSTNRHI = as.numeric(LBORNRHI) * CONVERSION,
+    LBSTRESU = if_else(!is.na(CONVERSION) & !is.na(STANDARD_UNIT), STANDARD_UNIT, LBORRESU),
+    LBTEST = toupper(trimws(LBTEST_)),
+    LBTESTCD = toupper(trimws(LBTESTCD_))
+  )
+
+# Merge with EX dataset
+EX <- SDTM.EX %>%
+  select(USUBJID, EXSTDTC) %>%
+  distinct()
+
+LB4 <- LB3 %>%
+  left_join(EX, by = "USUBJID") %>%
+  mutate(
+    LBDTM = if_else(nchar(LBDTC) >= 10, ymd_hms(paste(substr(LBDTC, 1, 16))), NA_real_),
+    EXSTDTM = if_else(nchar(EXSTDTC) >= 10, ymd_hms(paste(substr(EXSTDTC, 1, 16))), NA_real_)
+  )
+
+# Create baseline flag (LBBLFL)
+LB4 <- LB4 %>%
+  arrange(USUBJID, LBTESTCD, LBDTC) %>%
+  group_by(USUBJID, LBTESTCD) %>%
+  mutate(
+    LBBLFL = if_else(LBDTM <= EXSTDTM & !is.na(LBSTRESC) & row_number() == n(), "Y", NA_character_)
+  ) %>%
+  ungroup()
+
+# Merge with TV dataset
+TV <- SDTM.TV %>%
+  select(VISIT, VISITNUM) %>%
+  distinct()
+
+LB5 <- LB4 %>%
+  left_join(TV, by = "VISIT")
+
+# Sort and generate LBSEQ
+LB6 <- LB5 %>%
+  arrange(USUBJID, LBTESTCD, LBDTC, VISIT) %>%
+  group_by(USUBJID, LBTESTCD, LBDTC, VISIT) %>%
+  mutate(LBSEQ = row_number()) %>%
+  ungroup()
+
+# Final dataset
+Final <- LB6 %>%
+  select(
+    STUDYID, DOMAIN, USUBJID, LBSEQ, LBTESTCD, LBTEST, LBCAT, LBORRES, LBORRESU, LBORNRLO,
+    LBORNRHI, LBSTRESC, LBSTRESN, LBSTRESU, LBSTNRLO, LBSTNRHI, LBNRIND, LBBLFL, LBDTC, VISIT, VISITNUM
+  )
+
+# Assign variable attributes for SDTM specification
+attributes(Final) <- list(
+  STUDYID = list(label = "Study Identifier", length = 20),
+  DOMAIN = list(label = "Domain Abbreviation", length = 2),
+  USUBJID = list(label = "Unique Subject Identifier", length = 40),
+  LBSEQ = list(label = "Sequence Number", length = 8),
+  LBTESTCD = list(label = "Lab Test or Examination Short Name", length = 40),
+  LBTEST = list(label = "Lab Test or Examination Name", length = 40),
+  LBCAT = list(label = "Category for Lab Test", length = 40),
+  LBORRES = list(label = "Result or Finding in Original Units", length = 20),
+  LBORRESU = list(label = "Original Units", length = 40),
+  LBORNRLO = list(label = "Reference Range Lower Limit in Orig Unit", length = 40),
+  LBORNRHI = list(label = "Reference Range Upper Limit in Orig Unit", length = 40),
+  LBSTRESC = list(label = "Character Result/Finding in Std Format", length = 40),
+  LBSTRESN = list(label = "Numeric Result/Finding in Standard Units", length = 8),
+  LBSTRESU = list(label = "Standard Units", length = 40),
+  LBSTNRLO = list(label = "Reference Range Lower Limit-Std Units", length = 8),
+  LBSTNRHI = list(label = "Reference Range Upper Limit-Std Units", length = 8),
+  LBNRIND = list(label = "Reference Range for Char Rslt-Std Units", length = 40),
+  LBBLFL = list(label = "Baseline Flag", length = 2),
+  LBDTC = list(label = "Date/Time of Specimen Collection", length = 40),
+  VISIT = list(label = "Visit Name", length = 40),
+  VISITNUM = list(label = "Visit Number", length = 8)
+)
+
+# Save the final dataset
+write.csv(Final, "E://users/tiany/SDTM_LB.csv", row.names = FALSE)
+
