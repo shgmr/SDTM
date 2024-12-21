@@ -1,0 +1,126 @@
+library(readxl)
+library(dplyr)
+library(lubridate)
+
+# Define paths for input and output
+input_path <- "E://users/tiany/sdtm_raw.xlsx"
+output_path <- "E://users/tiany/"
+
+# Read in the raw DM dataset
+DM_raw <- read_excel(input_path, sheet = "DM")
+
+# Show structure of the raw DM dataset
+str(DM_raw)
+
+# Create the 1st set of DM variables
+DM1 <- DM_raw %>%
+  rename(COUNTRY_ = COUNTRY, SEX_ = SEX, AGEU_ = AGEU, ETHNIC_ = ETHNIC) %>%
+  mutate(
+    SITEID = SITE,
+    BRTHDTC = format(as.Date(BRTHDAT), "%Y-%m-%d"),
+    COUNTRY = case_when(
+      COUNTRY_ == "United States" ~ "USA",
+      TRUE ~ COUNTRY_
+    ),
+    SEX = case_when(
+      SEX_ == "Female" ~ "F",
+      SEX_ == "Male" ~ "M",
+      SEX_ == "Unknown" ~ "U",
+      SEX_ == "Undifferentiated" ~ "UNDIFFERENTIATED",
+      TRUE ~ SEX_
+    ),
+    ETHNIC = toupper(ETHNIC_),
+    AGEU = toupper(AGEU_),
+    RACE = case_when(
+      is.na(RACE_WHITE) & is.na(RACE_BLACK) & is.na(RACE_HAWAIIAN) & is.na(RACE_ASIAN) &
+        is.na(RACE_AINDIAN) & is.na(RACE_NOREPORT) & is.na(RACE_UNKNOWN) & is.na(RACE_OTHER) ~ NA_character_,
+      !is.na(RACE_AINDIAN) ~ "AMERICAN INDIAN OR ALASKA AMERICAN",
+      !is.na(RACE_ASIAN) ~ "ASIAN",
+      !is.na(RACE_BLACK) ~ "BLACK OR AFRICAN AMERICAN",
+      !is.na(RACE_HAWAIIAN) ~ "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDERS",
+      !is.na(RACE_WHITE) ~ "WHITE",
+      !is.na(RACE_NOREPORT) ~ "NOT REPORTED",
+      !is.na(RACE_UNKNOWN) ~ "UNKNOWN",
+      !is.na(RACE_OTHER) ~ "OTHER",
+      TRUE ~ NA_character_
+    )
+  )
+
+# Create SUPPDM Domain
+DM1 <- DM1 %>%
+  mutate(
+    RACEOTH = ifelse(!is.na(RACE_OTHER), "OTHER", NA),
+    ARMCD = "DRUG A"
+  )
+
+# Read the TA domain (treatment arm) dataset
+TA_raw <- read_excel(input_path, sheet = "TA")
+TA <- TA_raw %>%
+  distinct(ARMCD, ARM) %>%
+  select(ARMCD, ARM)
+
+# Merge DM1 with TA domain using ARMCD
+DM2 <- left_join(DM1, TA, by = "ARMCD")
+
+# Read the EX domain (exposure) dataset
+EX_raw <- read_excel(input_path, sheet = "EX")
+EX1 <- EX_raw %>%
+  mutate(
+    EXDTS = as.Date(EXSTDAT),
+    EXTMS = format(EXSTDAT, "%T"),
+    EXDTS_DT = format(EXDTS, "%Y-%m-%d"),
+    EXDTS_TM = EXTMS,
+    EXSTDTC = paste(EXDTS_DT, "T", EXDTS_TM)
+  )
+
+# Create RFSTDTC and RFENDTC from EX domain
+EX2 <- EX1 %>% filter(duplicated(SUBJID)) %>% select(SUBJID, EXSTDTC) %>% rename(RFSTDTC = EXSTDTC)
+EX3 <- EX1 %>% filter(duplicated(SUBJID, fromLast = TRUE)) %>% select(SUBJID, EXSTDTC) %>% rename(RFENDTC = EXSTDTC)
+
+# Merge RFSTDTC and RFENDTC into DM3 and DM4
+DM3 <- left_join(DM2, EX2, by = "SUBJID")
+DM4 <- left_join(DM3, EX3, by = "SUBJID")
+
+# Final dataset
+Final <- DM4 %>%
+  mutate(
+    DOMAIN = "DM",
+    STUDYID = "ABC-001",
+    USUBJID = paste(STUDYID, SITEID, SUBJID, sep = "-"),
+    ACTARM = ARM,
+    ACTARMCD = ARMCD
+  )
+
+# Save the final dataset to the SDTM directory
+write.csv(Final, paste0(output_path, "SDTM_DM.csv"), row.names = FALSE)
+
+# Create SUPPDM
+SUPPDM <- Final %>%
+  filter(RACE == "MULTIPLE") %>%
+  mutate(
+    RDOMAIN = "DM",
+    IDVAR = "",
+    IDVARVAL = "",
+    QORIG = "CRF"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("RACE"),
+    names_to = "QNAM",
+    values_to = "QVAL"
+  ) %>%
+  mutate(
+    QLABEL = case_when(
+      QNAM == "RACE1" ~ "American Indian/Alaska Native",
+      QNAM == "RACE2" ~ "ASIAN",
+      QNAM == "RACE3" ~ "Black or African American",
+      QNAM == "RACE4" ~ "Native Hawaiian/Pacific Islander",
+      QNAM == "RACE5" ~ "White",
+      QNAM == "RACE6" ~ "Not reported",
+      QNAM == "RACE7" ~ "Unknown",
+      QNAM == "RACE8" ~ "Other",
+      TRUE ~ QNAM
+    )
+  )
+
+# Save SUPPDM to SDTM directory
+write.csv(SUPPDM, paste0(output_path, "SDTM_SUPPDM.csv"), row.names = FALSE)
