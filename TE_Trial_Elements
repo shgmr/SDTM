@@ -1,0 +1,45 @@
+# Load necessary libraries
+library(readxl)
+library(dplyr)
+
+# Define file path
+file_path <- "E://users/tiany/sdtm_raw.xlsx"
+
+# Import data from the "TE" sheet in the Excel file
+TE <- read_excel(file_path, sheet = "TE")
+
+# Rename and transform data
+Final <- TE %>%
+  filter(DOMAIN == "TE") %>%
+  rename(
+    STUDYID = STUDYID_,
+    DOMAIN = DOMAIN_,
+    ETCD = ETCD_,
+    ELEMENT = ELEMENT_,
+    TESTRL = TESTRL_,
+    TEENRL = TEENRL_
+  ) %>%
+  mutate(
+    STUDYID = trimws(STUDYID),
+    DOMAIN = trimws(DOMAIN),
+    ETCD = trimws(ETCD),
+    ELEMENT = trimws(ELEMENT),
+    TESTRL = trimws(TESTRL),
+    TEENRL = trimws(TEENRL)
+  ) %>%
+  select(
+    STUDYID, DOMAIN, ETCD, ELEMENT, TESTRL, TEENRL
+  )
+
+# Create a final data frame with proper labels
+# In R, we don't have attributes exactly like in SAS, so we will manually manage labels
+# For further manipulation, we may use metadata documentation or custom labels
+
+# For now, just assign the dataframe to a new variable 'SDTM_TE'
+SDTM_TE <- Final
+
+# View the first few rows of the final dataset
+head(SDTM_TE)
+
+# If you want to save the dataframe to a new file
+write.csv(SDTM_TE, "E://users/tiany/SDTM_TE.csv", row.names = FALSE)
