@@ -1,0 +1,34 @@
+library(readxl)
+library(dplyr)
+library(labelled)
+
+# Import raw data
+raw_data <- read_excel("E://users/tiany/sdtm_raw.xlsx", sheet = "TI")
+
+# Renaming, filtering, and cleaning the data
+final_data <- raw_data %>%
+  rename(
+    STUDYID_ = STUDYID,
+    DOMAIN_ = DOMAIN,
+    IETESTCD_ = IETESTCD,
+    IETEST_ = IETEST,
+    IECAT_ = IECAT
+  ) %>%
+  filter(DOMAIN_ == "TI") %>%
+  mutate(
+    STUDYID = trimws(STUDYID_),
+    DOMAIN = trimws(DOMAIN_),
+    IETESTCD = trimws(IETESTCD_),
+    IETEST = trimws(IETEST_),
+    IECAT = trimws(IECAT_)
+  )
+
+# Optional: Adding labels (for reference)
+var_label(final_data$STUDYID) <- "Study Identifier"
+var_label(final_data$DOMAIN) <- "Domain Abbreviation"
+var_label(final_data$IETESTCD) <- "Inclusion/Exclusion Criterion Short Name"
+var_label(final_data$IETEST) <- "Inclusion/Exclusion Criterion"
+var_label(final_data$IECAT) <- "Inclusion/Exclusion Category"
+
+# Save the final dataset (optional step to save the output)
+write.csv(final_data, "E://users/tiany/SDTM_TI.csv", row.names = FALSE)
