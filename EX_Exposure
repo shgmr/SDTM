@@ -1,0 +1,85 @@
+# Load necessary libraries
+library(readxl)  # For importing Excel files
+library(dplyr)   # For data manipulation
+library(stringr) # For string operations
+library(lubridate) # For date manipulation
+
+# Set the file path for the raw data
+raw_data_path <- "E://users/tiany/sdtm_raw.xlsx"
+
+# Import raw Exposure (EX) data from Excel (sheet "EX")
+EX <- read_excel(raw_data_path, sheet = "EX")
+
+# Show structure of the raw EX dataset
+str(EX)
+
+# Create the 1st set of EX variables using existing variables from RAW.EX
+EX1 <- EX %>%
+  mutate(
+    # Define DOMAIN, USUBJID, EXCAT, EXDOSFRM
+    DOMAIN = "EX",
+    USUBJID = paste0(str_trim(STUDYID), "-", str_trim(SITEID), "-", str_trim(SUBJID)),
+    EXCAT = "DOSING",
+    
+    # Derive EXTRT, EXDOSU, EXDOSE, EXDOSFRQ, EXROUTE, EXREFID, EXDTS, EXTMS
+    EXTRT = if_else(str_detect(str_to_upper(FORM), "DRUG A"), "DRUG A", NA_character_),
+    EXDOSU = str_to_upper(str_trim(EXDOSU_)),
+    EXDOSE = EXDOSE_,
+    EXDOSFRM = "TABLET",  # Fixed value based on the SAS code
+    EXDOSFRQ = str_to_upper(str_trim(EXDOSFRQ_)),
+    EXROUTE = str_to_upper(str_trim(EXROUTE_)),
+    EXREFID = as.character(EXREFID_),
+    EXDTS = as.Date(EXSTDAT), # Convert to Date
+    EXTMS = format(EXSTDAT, "%H:%M:%S"), # Extract time
+    
+    # Derive EXDTS_DT, EXDTS_TM, EXDTE_DT, EXDTE_TM
+    EXDTS_DT = format(EXDTS, "%Y-%m-%d"),
+    EXDTS_TM = format(EXTMS, "%H:%M:%S"),
+    EXDTE = as.Date(EXENDAT),
+    EXTME = format(EXENDAT, "%H:%M:%S"),
+    EXDTE_DT = format(EXDTE, "%Y-%m-%d"),
+    EXDTE_TM = format(EXTME, "%H:%M:%S"),
+    
+    # Derive EXSTDTC and EXENDTC
+    EXSTDTC = paste0(EXDTS_DT, "T", EXDTS_TM),
+    EXENDTC = paste0(EXDTE_DT, "T", EXDTE_TM)
+  )
+
+# Sort dataset EX1 by USUBJID, EXSTDTC, EXENDTC, EXTRT, EXDOSE
+EX2 <- EX1 %>%
+  arrange(USUBJID, EXSTDTC, EXENDTC, EXTRT, EXDOSE)
+
+# Derive EXSEQ (Sequence number for each subject)
+Final <- EX2 %>%
+  group_by(USUBJID, EXSTDTC, EXENDTC, EXTRT, EXDOSE) %>%
+  mutate(
+    EXSEQ = row_number()
+  ) %>%
+  ungroup()
+
+# Save the final dataset to CSV (as there is no direct equivalent of 'libname' in R, CSV is a good option for storage)
+write.csv(Final, "E://users/tiany/SDTM_EX.csv", row.names = FALSE)
+
+# Assign labels to the variables (R doesn't require explicit lengths like SAS, but we can document labels)
+final_labels <- list(
+  STUDYID = "Study Identifier",
+  DOMAIN = "Domain Abbreviation",
+  USUBJID = "Unique Subject Identifier",
+  EXSEQ = "Sequence Number",
+  EXREFID = "Reference ID",
+  EXTRT = "Name of Treatment",
+  EXCAT = "Category of Treatment",
+  EXDOSE = "Dose",
+  EXDOSU = "Dose Units",
+  EXDOSFRM = "Dose Form",
+  EXDOSFRQ = "Dosing Frequency per Interval",
+  EXROUTE = "Route of Administration",
+  EXSTDTC = "Start Date/Time of Treatment",
+  EXENDTC = "End Date/Time of Treatment"
+)
+
+# Optionally, you can add the labels to your dataset as metadata, but R typically doesn't require this step
+# If you want to include labels for documentation, they can be assigned as attributes or stored separately
+attr(Final, "labels") <- final_labels
+
+# Optionally, save the final dataset to a CSV or any other format that fits your needs
