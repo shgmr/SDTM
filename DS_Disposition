@@ -1,0 +1,76 @@
+# Load necessary libraries
+library(readxl)  # For importing Excel files
+library(dplyr)   # For data manipulation
+library(stringr) # For string operations
+
+# Set the file path for the raw data
+raw_data_path <- "E://users/tiany/sdtm_raw.xlsx"
+
+# Import raw Disposition data from Excel (sheet "DS")
+DS <- read_excel(raw_data_path, sheet = "DS")
+
+# Show structure of the raw DS dataset
+str(DS)
+
+# Create the 1st set of DS variables using existing variables from RAW.DS
+DS1 <- DS %>%
+  mutate(
+    # Define DOMAIN, STUDYID, SITEID, USUBJID, DSSTDTC
+    DOMAIN = "DS",
+    STUDYID = "ABC-001",
+    SITEID = SITE,
+    USUBJID = paste0(str_trim(STUDYID), "-", str_trim(SITEID), "-", str_trim(SUBJID)),
+    DSCAT = "DISPOSITION EVENT",
+    DSSTDTC = format(DSSTDAT, "%Y-%m-%d"),
+    
+    # Derive DSTERM based on DSDECOD values
+    DSTERM = case_when(
+      str_to_upper(DSDECOD) == "COMPLETED" ~ "COMPLETED",
+      str_to_upper(DSDECOD) == "ADVERSE EVENT" ~ "ADVERSE EVENT",
+      str_to_upper(DSDECOD) == "DEATH" ~ "DEATH",
+      str_to_upper(DSDECOD) == "LOST TO FOLLOW-UP" ~ "Lost To Follow-Up",
+      str_to_upper(DSDECOD) == "PREGANCY" ~ "PREGANCY",
+      str_to_upper(DSDECOD) == "PROGRESSIVE DISEASE" ~ "PROGRESSIVE DISEASE",
+      str_to_upper(DSDECOD) == "PROTOCOL DEVIATION" ~ "PROTOCOL DEVIATION",
+      str_to_upper(DSDECOD) == "SCREEN FAILURE" ~ "SCREEN FAILURE",
+      str_to_upper(DSDECOD) == "SITE TERMINATED BY SPONSOR" ~ "SITE TERMINATED BY SPONSOR",
+      str_to_upper(DSDECOD) == "STUDY TERMINATED BY SPONSOR" ~ "STUDY TERMINATED BY SPONSOR",
+      str_to_upper(DSDECOD) == "WITHDRAWN BY SUBJECT" ~ "WITHDRAWN BY SUBJECT",
+      str_to_upper(DSDECOD) == "OTHER" ~ "OTHER",
+      TRUE ~ NA_character_
+    )
+  )
+
+# Sort dataset DS1 by USUBJID, DSSTDTC, DSDECOD
+DS2 <- DS1 %>%
+  arrange(USUBJID, DSSTDTC, DSDECOD)
+
+# Derive DSSEQ (similar to creating a sequence number)
+Final <- DS2 %>%
+  group_by(USUBJID, DSSTDTC, DSDECOD) %>%
+  mutate(
+    DSSEQ = cumsum(ifelse(row_number() == 1, 0, 1)) + 1
+  ) %>%
+  ungroup()
+
+# Save the final dataset
+# Here, we assume saving to a CSV for SDTM output as R doesn't have a direct SAS equivalent
+write.csv(Final, "E://users/tiany/SDTM_DS.csv", row.names = FALSE)
+
+# Assign labels to the variables (R doesn't require explicit lengths like SAS, but we can document labels)
+final_labels <- list(
+  STUDYID = "Study Identifier",
+  DOMAIN = "Domain Abbreviation",
+  USUBJID = "Unique Subject Identifier",
+  DSSEQ = "Sequence Number",
+  DSTERM = "Reported Term for the Disposition Event",
+  DSDECOD = "Standardized Disposition Term",
+  DSCAT = "Category for Disposition Event",
+  DSSTDTC = "Start Date/Time of Disposition Event"
+)
+
+# Optionally, you can add the labels to your dataset as metadata, but R typically doesn't require this step
+# If you want to include labels for documentation, they can be assigned as attributes or stored separately
+attr(Final, "labels") <- final_labels
+
+# Optionally, save the final dataset to a CSV or any other format that fits your needs
