@@ -1,0 +1,42 @@
+library(readxl)  # For reading Excel files
+library(dplyr)   # For data manipulation
+library(labelled)  # For assigning labels to columns
+
+# Step 1: Import data from the Excel file (sheet "TV")
+raw_data <- read_excel("E://users/tiany/sdtm_raw.xlsx", sheet = "TV")
+
+# Step 2: Rename columns and clean the data
+final_data <- raw_data %>%
+  rename(
+    STUDYID_ = STUDYID,
+    DOMAIN_ = DOMAIN,
+    VISITNUM_ = VISITNUM,
+    VISIT_ = VISIT,
+    ARM_ = ARM,
+    ARMCD_ = ARMCD,
+    TVSTRL_ = TVSTRL
+  ) %>%
+  mutate(
+    STUDYID = trimws(STUDYID_),
+    DOMAIN = trimws(DOMAIN_),
+    VISITNUM = VISITNUM_,
+    VISIT = trimws(VISIT_),
+    ARM = trimws(ARM_),
+    ARMCD = trimws(ARMCD_),
+    TVSTRL = trimws(TVSTRL_)
+  ) %>%
+  select(
+    STUDYID, DOMAIN, VISITNUM, VISIT, ARM, ARMCD, TVSTRL
+  )
+
+# Step 3: Assign labels to the variables (optional step for documentation purposes)
+var_label(final_data$STUDYID) <- "Study Identifier"
+var_label(final_data$DOMAIN) <- "Domain Abbreviation"
+var_label(final_data$VISITNUM) <- "Visit Number"
+var_label(final_data$VISIT) <- "Visit Name"
+var_label(final_data$ARM) <- "Planned Arm"
+var_label(final_data$ARMCD) <- "Planned Arm Code"
+var_label(final_data$TVSTRL) <- "Visit Start Rule"
+
+# Step 4: Save the final dataset (e.g., as CSV)
+write.csv(final_data, "E://users/tiany/SDTM_TV.csv", row.names = FALSE)
